@@ -3,8 +3,6 @@ Class for loading a dataset of images
 """
 import os
 
-import PIL
-
 from PIL import Image
 
 import torch
