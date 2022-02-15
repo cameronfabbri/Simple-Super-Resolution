@@ -172,7 +172,10 @@ class Model:
         # D's prediction on fake data
         d_fake = self.net_d(batch_g.detach())
 
+        # Loss for D on real data
         loss_d_real = self.crit(d_real, torch.ones((d_real.shape)))
+
+        # Loss for D on fake data
         loss_d_fake = self.crit(d_fake, torch.zeros((d_real.shape)))
 
         loss_d = loss_d_real + loss_d_fake
