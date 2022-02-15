@@ -1,5 +1,5 @@
 """
-
+Class for loading a dataset of images
 """
 import os
 
