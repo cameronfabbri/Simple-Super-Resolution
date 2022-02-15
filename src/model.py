@@ -204,6 +204,11 @@ class Model:
                 statement += ' | d_loss: %.3f' % d_loss
                 print(statement)
 
+                # Add loss to Tensorboard
+                writer.add_scalar('l1_loss', l1_loss, self.step)
+                writer.add_scalar('g_loss', g_loss, self.step)
+                writer.add_scalar('d_loss', d_loss, self.step)
+
                 self.step += 1
 
                 # Save every 500 steps
