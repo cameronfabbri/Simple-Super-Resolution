@@ -37,7 +37,7 @@ class Conv2d(nn.Module):
             self.normalization = nn.Identity()
         self.activation = activation()
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Runs a forward pass
 

@@ -81,5 +81,5 @@ class ImageDataset(Dataset):
 
         return x, y
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> tuple[torch.Tensor, torch.Tensor]:
         return self.transform(Image.open(self.image_paths[idx]))
