@@ -3,12 +3,13 @@ Class for loading a dataset of images
 """
 import os
 
-from PIL import Image
-
 import torch
-import torchvision.transforms as transforms
 
 from torch.utils.data import Dataset
+
+import torchvision.transforms as transforms
+
+from PIL import Image
 
 opj = os.path.join
 
@@ -36,7 +37,7 @@ class ImageDataset(Dataset):
         self.patch_size = patch_size
         self.root_dir = root_dir
         self.image_paths = [
-            opj(root_dir, x) for x in os.listdir(root_dir)
+            opj(root_dir, x) for x in os.listdir(root_dir) if '.DS' not in x
         ]
 
     def __len__(self):

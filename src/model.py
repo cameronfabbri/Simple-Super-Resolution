@@ -9,16 +9,20 @@ SR: super resolved (generated images)
 """
 import os
 
-from PIL import Image
-
 import torch
+
+from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
+
 import src.data as data
 import src.networks as networks
 import torchvision
 import torchvision.transforms as transforms
 
+from PIL import Image
 from torchvision.utils import save_image
-from torch.utils.data import DataLoader
+
+os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
 
 opj = os.path.join
 
@@ -26,14 +30,44 @@ opj = os.path.join
 class Model:
     """ Class for training a model """
 
-    def __init__(self, args):
+    def __init__(
+            self,
+            data_dir: str,
+            num_workers: int,
+            patch_size: int,
+            batch_size: int,
+            num_blocks: int,
+            lambda_l1: float,
+            lr_g: float,
+            lr_d: float,
+            num_steps: int) -> None:
+        """
+        Initializes the model for training
 
-        self.data_dir = args.data_dir
-        self.lambda_l1 = args.lambda_l1
-        self.num_steps = args.num_steps
-        self.patch_size = args.patch_size
-        self.batch_size = args.batch_size
-        self.num_blocks = args.num_blocks
+        Params
+        ------
+        data_dir (str): Directory containing the training and test datasets.
+        num_workers (int): Number of threads for data loading
+        patch_size (int): Size of the image patches for training
+        batch_size (int): Batch size for training
+        num_blocks (int): Number of residual blocks to use in the generator
+        network.
+        lambda_l1 (float): Scalar for L1 loss
+        lr_g (float): Learning rate for the generator
+        lr_d (float): Learning rate for the discriminator
+        num_steps (int): Number of training steps
+
+        Returns
+        -------
+        None
+        """
+
+        self.data_dir = data_dir
+        self.lambda_l1 = lambda_l1
+        self.num_steps = num_steps
+        self.patch_size = patch_size
+        self.batch_size = batch_size
+        self.num_blocks = num_blocks
 
         train_dir = opj(self.data_dir, 'train')
         test_dir = opj(self.data_dir, 'test')
@@ -47,11 +81,13 @@ class Model:
         # Set CPU/GPU
         if torch.cuda.is_available():
             self.device = torch.device('cuda:0')
+        elif torch.backends.mps.is_available():
+            self.device = torch.device('mps')
         else:
             self.device = torch.device('cpu')
 
         # Get residual blocks for the generator
-        resblocks = networks.SISR_Resblocks(args.num_blocks)
+        resblocks = networks.SISR_Resblocks(num_blocks)
         self.net_g = networks.Generator(resblocks).to(self.device)
 
         # Size of the second to last fully connected layer in D
@@ -59,9 +95,9 @@ class Model:
         self.net_d = networks.Discriminator(fc_size).to(self.device)
 
         self.optimizer_g = torch.optim.Adam(
-            self.net_g.parameters(), lr=args.lr_g, betas=(0.5, 0.9))
+            self.net_g.parameters(), lr=lr_g, betas=(0.5, 0.9))
         self.optimizer_d = torch.optim.Adam(
-            self.net_d.parameters(), lr=args.lr_d, betas=(0.5, 0.9))
+            self.net_d.parameters(), lr=lr_d, betas=(0.5, 0.9))
 
         # Checkpoint for saving out the model
         os.makedirs('ckpts', exist_ok=True)
@@ -69,12 +105,14 @@ class Model:
         self.step = 0
 
         # Get the training dataset
-        train_dataset = data.ImageDataset(root_dir=train_dir, patch_size=self.patch_size)
+        train_dataset = data.ImageDataset(
+            root_dir=train_dir, patch_size=self.patch_size
+        )
         self.train_dataloader = DataLoader(
                 train_dataset,
                 batch_size=self.batch_size,
                 shuffle=True,
-                num_workers=args.num_workers)
+                num_workers=num_workers)
 
         # Get a batch of test images to save during training
         self.static_test_batch = []
@@ -139,7 +177,7 @@ class Model:
         d_fake = self.net_d(batch_g)
 
         # GAN loss for G
-        g_loss = self.crit(d_fake, torch.ones((d_fake.shape)))
+        g_loss = self.crit(d_fake, torch.ones((d_fake.shape)).to(self.device))
 
         total_loss = l1_loss + g_loss
 
@@ -149,7 +187,8 @@ class Model:
 
         return l1_loss, g_loss, batch_g
 
-    def step_d(self, batch_y: torch.Tensor, batch_g: torch.Tensor) -> torch.Tensor:
+    def step_d(
+            self, batch_y: torch.Tensor, batch_g: torch.Tensor) -> torch.Tensor:
         """
         Params
         ------
@@ -173,10 +212,14 @@ class Model:
         d_fake = self.net_d(batch_g.detach())
 
         # Loss for D on real data
-        loss_d_real = self.crit(d_real, torch.ones((d_real.shape)))
+        loss_d_real = self.crit(
+            d_real, torch.ones((d_real.shape)).to(self.device)
+        )
 
         # Loss for D on fake data
-        loss_d_fake = self.crit(d_fake, torch.zeros((d_real.shape)))
+        loss_d_fake = self.crit(
+            d_fake, torch.zeros((d_real.shape)).to(self.device)
+        )
 
         loss_d = loss_d_real + loss_d_fake
 
@@ -186,8 +229,17 @@ class Model:
 
         return loss_d
 
-    def train(self, writer):
-        """ Main training loop """
+    def train(self, writer: SummaryWriter):
+        """
+        Main training loop
+
+        Params
+        ------
+        writer (SummaryWriter): Writer for Tensorboard
+
+        Returns
+        -------
+        """
 
         for step in range(self.num_steps):
 
@@ -215,15 +267,15 @@ class Model:
                 self.step += 1
 
                 # Save every 500 steps
-                if not self.step % 500:
+                if not self.step % 10:
 
                     self.save()
                     print('Saving out test images')
                     with torch.no_grad():
                         for i, test_batch in enumerate(self.static_test_batch):
 
-                            test_x = test_batch[0]
-                            test_y = test_batch[1]
+                            test_x = test_batch[0].to(self.device)
+                            test_y = test_batch[1].to(self.device)
 
                             test_g = self.net_g(test_x)
 
@@ -241,6 +293,9 @@ class Model:
                             test_y = (test_y + 1.) / 2.
                             test_g = (test_g + 1.) / 2.
                             canvas = torch.cat([test_x, test_y, test_g], axis=2)
+                            filename = str(self.step) + '_' + str(i) + '.png'
                             save_image(
-                                canvas, opj('ckpts', str(self.step) + '_' + str(i) + '.png'))
+                                canvas,
+                                opj('ckpts', filename)
+                            )
 

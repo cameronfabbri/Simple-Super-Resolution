@@ -5,12 +5,13 @@ channels:
    - conda-forge
    - defaults
 dependencies:
-   - python=3.8.8
-   - torchvision==0.8.1
-   - pytorch==1.8.0
+   - python=3.11.4
+   - pytorch==2.3
+   - torchvision==0.18
    - tqdm
    - opencv
    - pip
    - pip:
+      - click
       - tensorboard
       - pytorch-ssim

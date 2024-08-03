@@ -1,9 +1,10 @@
 """
 Modules and networks
 """
+from typing import Callable
+
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class Conv2d(nn.Module):
@@ -13,13 +14,13 @@ class Conv2d(nn.Module):
     """
     def __init__(
             self,
-            in_channels,
-            out_channels,
-            kernel_size,
-            stride,
-            padding,
-            activation,
-            normalization):
+            in_channels: int,
+            out_channels: int,
+            kernel_size: int,
+            stride: int,
+            padding: int,
+            activation: Callable,
+            normalization: Callable):
         super(Conv2d, self).__init__()
 
         self.conv = nn.Conv2d(
@@ -36,7 +37,18 @@ class Conv2d(nn.Module):
             self.normalization = nn.Identity()
         self.activation = activation()
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
+        """
+        Runs a forward pass
+
+        Params
+        ------
+        x (torch.Tensor): input
+
+        Returns
+        -------
+        x (torch.Tensor): output
+        """
         x = self.conv(x)
         x = self.normalization(x)
         return self.activation(x)
@@ -51,6 +63,17 @@ class ResBlock(nn.Module):
             in_channels,
             out_channels,
             kernel_size):
+        """
+        Params
+        ------
+        in_channels (int): Number of channels coming in
+        out_channels (int): Number of channels for the output
+        kernel_size (int): Size of the kernel
+
+        Returns
+        -------
+        x (torch.Tensor): output
+        """
         super(ResBlock, self).__init__()
 
         self.conv1 = Conv2d(
